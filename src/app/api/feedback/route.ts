@@ -1,0 +1,221 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { requireAuthGuard } from "@/lib/auth";
+import { classifyFeedback } from "@/lib/ai";
+import { z } from "zod";
+
+const CreateFeedbackSchema = z.object({
+  content: z.string().min(3, "Feedback content must be at least 3 characters."),
+  channel: z.enum([
+    "SUPPORT_TICKET",
+    "APP_STORE_REVIEW",
+    "NPS_SURVEY",
+    "SALES_NOTE",
+    "COMMUNITY_POST",
+  ]),
+  sourceRef: z.string().optional(),
+  customerLabel: z.string().optional(),
+});
+
+export async function GET(req: Request) {
+  const { user, error } = await requireAuthGuard();
+  if (error) return error;
+
+  const url = new URL(req.url);
+  const search = url.searchParams.get("search") || "";
+  const channel = url.searchParams.get("channel") || "";
+  const sentiment = url.searchParams.get("sentiment") || "";
+  const themeId = url.searchParams.get("themeId") || "";
+  const status = url.searchParams.get("status") || "";
+  const days = parseInt(url.searchParams.get("days") || "0", 10);
+  const page = parseInt(url.searchParams.get("page") || "1", 10);
+  const limit = parseInt(url.searchParams.get("limit") || "15", 10);
+
+  // Build prisma filter strictly scoped to tenant workspaceId
+  const where: any = {
+    workspaceId: user.workspaceId,
+  };
+
+  if (search.trim() !== "") {
+    where.OR = [
+      { content: { contains: search } },
+      { customerLabel: { contains: search } },
+      { sourceRef: { contains: search } },
+      { featureArea: { contains: search } },
+    ];
+  }
+
+  if (channel && channel !== "ALL") {
+    where.channel = channel;
+  }
+
+  if (sentiment && sentiment !== "ALL") {
+    where.sentiment = sentiment;
+  }
+
+  if (status && status !== "ALL") {
+    where.status = status;
+  }
+
+  if (themeId && themeId !== "ALL") {
+    where.feedbackThemes = {
+      some: { themeId },
+    };
+  }
+
+  if (days > 0) {
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() - days);
+    where.createdAt = { gte: minDate };
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [items, total] = await Promise.all([
+    prisma.feedback.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        feedbackThemes: {
+          include: { theme: true },
+        },
+      },
+    }),
+    prisma.feedback.count({ where }),
+  ]);
+
+  // Aggregate stats across all items in tenant workspace
+  const totalWorkspaceItems = await prisma.feedback.count({
+    where: { workspaceId: user.workspaceId },
+  });
+
+  const negativeCount = await prisma.feedback.count({
+    where: { workspaceId: user.workspaceId, sentiment: "NEGATIVE" },
+  });
+
+  const actionedCount = await prisma.feedback.count({
+    where: { workspaceId: user.workspaceId, status: "ACTIONED" },
+  });
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const newThisWeek = await prisma.feedback.count({
+    where: {
+      workspaceId: user.workspaceId,
+      createdAt: { gte: sevenDaysAgo },
+    },
+  });
+
+  return NextResponse.json({
+    items: items.map((f: any) => ({
+      ...f,
+      themes: f.feedbackThemes.map((ft: any) => ft.theme),
+    })),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+    stats: {
+      total: totalWorkspaceItems,
+      negativeRatio: totalWorkspaceItems > 0 ? (negativeCount / totalWorkspaceItems) * 100 : 0,
+      actionedRatio: totalWorkspaceItems > 0 ? (actionedCount / totalWorkspaceItems) * 100 : 0,
+      newThisWeek,
+    },
+  });
+}
+
+export async function POST(req: Request) {
+  // Enforce role authorization: Admins and Analysts can ingest
+  const { user, error } = await requireAuthGuard(["ADMIN", "ANALYST"]);
+  if (error) return error;
+
+  try {
+    const body = await req.json();
+    const validated = CreateFeedbackSchema.parse(body);
+
+    // Get existing themes for theme matching
+    const existingThemes = await prisma.theme.findMany({
+      where: { workspaceId: user.workspaceId },
+      select: { name: true, id: true },
+    });
+
+    const themeNames = existingThemes.map((t: any) => t.name);
+
+    // Run AI classification
+    const classification = await classifyFeedback(validated.content, themeNames);
+
+    // Find or create matching theme
+    let matchedTheme = existingThemes.find(
+      (t: any) => t.name.toLowerCase() === classification.themeName.toLowerCase()
+    );
+
+    if (!matchedTheme) {
+      const colors = ["#6366F1", "#EF4444", "#F59E0B", "#10B981", "#8B5CF6", "#06B6D4"];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+      matchedTheme = await prisma.theme.create({
+        data: {
+          name: classification.themeName,
+          description: `Auto-generated theme for ${classification.featureArea} feedback.`,
+          color: randomColor,
+          workspaceId: user.workspaceId,
+        },
+      });
+    }
+
+    // Save Feedback record with tenant workspaceId
+    const feedback = await prisma.feedback.create({
+      data: {
+        content: validated.content,
+        channel: validated.channel,
+        sourceRef: validated.sourceRef || `SINGLE-${Date.now().toString().slice(-4)}`,
+        customerLabel: validated.customerLabel || "Direct Submission",
+        sentiment: classification.sentiment,
+        sentimentScore: classification.sentimentScore,
+        status: "NEW",
+        featureArea: classification.featureArea,
+        rationale: classification.rationale,
+        workspaceId: user.workspaceId,
+      },
+    });
+
+    // Attach theme join record
+    await prisma.feedbackTheme.create({
+      data: {
+        feedbackId: feedback.id,
+        themeId: matchedTheme.id,
+        confidence: 0.95,
+      },
+    });
+
+    // Save keyword embedding representation
+    const keywords = validated.content.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+    await prisma.embedding.create({
+      data: {
+        feedbackId: feedback.id,
+        vectorJson: JSON.stringify(keywords),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      feedback: {
+        ...feedback,
+        themes: [matchedTheme],
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: err.issues?.[0]?.message || err.message || "Invalid input." },
+        { status: 400 }
+      );
+    }
+    console.error("Create Feedback error:", err);
+    return NextResponse.json({ error: "Failed to process feedback entry." }, { status: 500 });
+  }
+}
