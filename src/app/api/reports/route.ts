@@ -46,13 +46,13 @@ export async function POST(req: Request) {
       },
     });
 
-    const posCount = items.filter((i) => i.sentiment === "POSITIVE").length;
-    const negCount = items.filter((i) => i.sentiment === "NEGATIVE").length;
+    const posCount = items.filter((i: any) => i.sentiment === "POSITIVE").length;
+    const negCount = items.filter((i: any) => i.sentiment === "NEGATIVE").length;
 
     // Theme frequency counts
     const themeCounts: Record<string, number> = {};
-    items.forEach((item) => {
-      item.feedbackThemes.forEach((ft) => {
+    items.forEach((item: any) => {
+      item.feedbackThemes.forEach((ft: any) => {
         themeCounts[ft.theme.name] = (themeCounts[ft.theme.name] || 0) + 1;
       });
     });
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       .slice(0, 4);
 
     const spikingTheme = topThemes[0]?.name || "Onboarding & Setup";
-    const sampleQuotes = items.map((i) => i.content).slice(0, 6);
+    const sampleQuotes = items.map((i: any) => i.content).slice(0, 6);
 
     const periodLabel = days === 7 ? "Past 7 Days" : days === 30 ? "Past 30 Days" : "Past 90 Days";
 
