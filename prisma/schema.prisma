@@ -10,10 +10,12 @@ datasource db {
 }
 
 model Workspace {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  name            String
+  apiKey          String?  @unique // Inbound Webhook API key
+  slackWebhookUrl String?  // Outbound Slack/Discord webhook URL
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   users     User[]
   feedbacks Feedback[]
@@ -54,6 +56,10 @@ model Feedback {
 
   feedbackThemes FeedbackTheme[]
   embedding      Embedding?
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, sentiment])
+  @@index([workspaceId, status])
 }
 
 model Theme {
