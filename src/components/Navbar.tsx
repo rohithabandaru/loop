@@ -59,27 +59,24 @@ export default function Navbar({ user }: NavbarProps) {
           </span>
           <button
             onClick={() => handleQuickRoleSwitch("admin@acme.com")}
-            className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${
-              user.role === "ADMIN" ? "bg-rose-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${user.role === "ADMIN" ? "bg-rose-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
+              }`}
             title="Switch to Admin Role"
           >
             Admin
           </button>
           <button
             onClick={() => handleQuickRoleSwitch("analyst@acme.com")}
-            className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${
-              user.role === "ANALYST" ? "bg-indigo-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${user.role === "ANALYST" ? "bg-indigo-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
+              }`}
             title="Switch to Analyst Role"
           >
             Analyst
           </button>
           <button
             onClick={() => handleQuickRoleSwitch("viewer@acme.com")}
-            className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${
-              user.role === "VIEWER" ? "bg-emerald-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`px-2 py-1 rounded-lg transition-colors cursor-pointer ${user.role === "VIEWER" ? "bg-emerald-600 text-white font-semibold" : "text-slate-400 hover:text-slate-200"
+              }`}
             title="Switch to Viewer Role"
           >
             Viewer
@@ -94,9 +91,8 @@ export default function Navbar({ user }: NavbarProps) {
           </div>
 
           <span
-            className={`text-xs px-2.5 py-1 rounded-full border font-mono font-semibold flex items-center space-x-1 ${
-              roleColors[user.role]
-            }`}
+            className={`text-xs px-2.5 py-1 rounded-full border font-mono font-semibold flex items-center space-x-1 ${roleColors[user.role]
+              }`}
           >
             <Shield className="w-3 h-3" />
             <span>{user.role}</span>

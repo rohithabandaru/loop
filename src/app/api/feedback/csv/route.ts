@@ -10,30 +10,52 @@ export async function POST(req: Request) {
   if (error) return error;
 
   try {
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
     let csvText = "";
+    const contentType = req.headers.get("content-type") || "";
 
-    if (file) {
-      csvText = await file.text();
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      if (file && typeof file.text === "function") {
+        csvText = await file.text();
+      } else {
+        csvText = (formData.get("csvText") as string) || "";
+      }
     } else {
       const body = await req.json().catch(() => ({}));
       csvText = body.csvText || "";
     }
 
-    if (!csvText || csvText.trim() === "") {
+    // Clean Byte Order Mark (BOM) & trim
+    csvText = csvText.replace(/^\uFEFF/, "").trim();
+
+    if (!csvText) {
       return NextResponse.json({ error: "No CSV content provided." }, { status: 400 });
     }
 
-    // Parse CSV rows
-    const records: Record<string, any>[] = parse(csvText, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-    });
+    // Parse CSV rows with flexible rules
+    let records: Record<string, any>[] = [];
+    try {
+      records = parse(csvText, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        bom: true,
+        relax_column_count: true,
+        relax_quotes: true,
+      });
+    } catch (parseErr: any) {
+      return NextResponse.json(
+        { error: `CSV Syntax Error: ${parseErr?.message || "Invalid CSV formatting."}` },
+        { status: 400 }
+      );
+    }
 
     if (!Array.isArray(records) || records.length === 0) {
-      return NextResponse.json({ error: "CSV file is empty or missing headers." }, { status: 400 });
+      return NextResponse.json(
+        { error: "CSV file is empty or missing headers (e.g. content, channel, customerLabel)." },
+        { status: 400 }
+      );
     }
 
     const existingThemes = await prisma.theme.findMany({
@@ -56,23 +78,35 @@ export async function POST(req: Request) {
       "COMMUNITY_POST",
     ];
 
+    // Helper for case-insensitive column matching
+    const getValue = (row: Record<string, any>, candidateKeys: string[]): string => {
+      const rowKeys = Object.keys(row);
+      for (const key of candidateKeys) {
+        const match = rowKeys.find((rk) => rk.trim().toLowerCase() === key.toLowerCase());
+        if (match && row[match] !== undefined && row[match] !== null) {
+          return String(row[match]).trim();
+        }
+      }
+      return "";
+    };
+
     for (let i = 0; i < records.length; i++) {
       const row = records[i];
-      const content = row.content || row.Content || row.text || row.Text || row.feedback || row.Feedback;
+      const content = getValue(row, ["content", "feedback", "text", "message", "description", "comment", "review", "notes"]);
 
-      if (!content || typeof content !== "string" || content.trim().length < 3) {
+      if (!content || content.length < 3) {
         failedCount++;
         errors.push(`Row #${i + 1}: Missing or invalid 'content' field.`);
         continue;
       }
 
-      let rawChannel = (row.channel || row.Channel || "SUPPORT_TICKET").toUpperCase().replace(/\s+/g, "_");
+      let rawChannel = getValue(row, ["channel", "source", "type", "medium"]).toUpperCase().replace(/\s+/g, "_");
       if (!channelsAllowed.includes(rawChannel)) {
         rawChannel = "SUPPORT_TICKET";
       }
 
-      const customerLabel = row.customerLabel || row.customer_label || row.customer || row.user || "CSV Upload";
-      const sourceRef = row.sourceRef || row.source_ref || `CSV-${Date.now().toString().slice(-4)}-${i + 1}`;
+      const customerLabel = getValue(row, ["customerlabel", "customer_label", "customer", "user", "email", "client"]) || "CSV Upload";
+      const sourceRef = getValue(row, ["sourceref", "source_ref", "ref", "id"]) || `CSV-${Date.now().toString().slice(-4)}-${i + 1}`;
 
       try {
         const classification = await classifyFeedback(content, Object.keys(themeMap));
@@ -94,7 +128,7 @@ export async function POST(req: Request) {
 
         const feedback = await prisma.feedback.create({
           data: {
-            content: content.trim(),
+            content,
             channel: rawChannel,
             sourceRef,
             customerLabel,
