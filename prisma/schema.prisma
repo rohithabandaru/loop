@@ -21,6 +21,7 @@ model Workspace {
   feedbacks Feedback[]
   themes    Theme[]
   reports   Report[]
+  auditLogs AuditLog[]
 }
 
 model User {
@@ -34,15 +35,26 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  reports Report[]
+  reports AuditLog[]
+  userReports Report[]
 }
 
 model Feedback {
   id             String   @id @default(uuid())
   content        String
-  channel        String   // SUPPORT_TICKET | APP_STORE_REVIEW | NPS_SURVEY | SALES_NOTE | COMMUNITY_POST
+  channel        String   // SUPPORT_TICKET | EMAIL | AMAZON_REVIEW | GOOGLE_REVIEW | PLAY_STORE | APP_STORE | WEBSITE | LIVE_CHAT | FACEBOOK | INSTAGRAM | TWITTER_X | LINKEDIN | WHATSAPP | PHONE_CALL | SURVEY | NPS | SALES_CALL | COMMUNITY_FORUM
   sourceRef      String?  // e.g. TICKET-4091, AppStore #912
   customerLabel  String?  // e.g. enterprise, pro, churned_user, john@company.com
+  customerName   String?  // e.g. John Doe
+  customerEmail  String?  // e.g. john@acme.com
+  company        String?  // e.g. Acme Corp
+  source         String?  // e.g. Zendesk, Intercom, App Store, API
+  rating         Float?   // e.g. 1.0 to 5.0
+  title          String?  // Feedback summary title
+  product        String?  // Target product/module
+  tags           String?  // Comma-separated tag list
+  priority       String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  language       String   @default("en") // e.g. en, es, fr, de, ja
   sentiment      String   // POSITIVE | NEUTRAL | NEGATIVE
   sentimentScore Float    @default(0.0) // -1.0 to +1.0
   status         String   @default("NEW") // NEW | REVIEWED | ACTIONED
@@ -60,6 +72,8 @@ model Feedback {
   @@index([workspaceId, createdAt])
   @@index([workspaceId, sentiment])
   @@index([workspaceId, status])
+  @@index([workspaceId, channel])
+  @@index([workspaceId, priority])
 }
 
 model Theme {
@@ -110,4 +124,19 @@ model Report {
   generatedBy   User   @relation(fields: [generatedById], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   // e.g. FEEDBACK_INGEST, BULK_IMPORT, CHANNEL_SIMULATION
+  details     String   // JSON string or summary
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
 }

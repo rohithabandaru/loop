@@ -2,20 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuthGuard } from "@/lib/auth";
 import { classifyFeedback } from "@/lib/ai";
+import { logAuditEvent } from "@/lib/audit";
+import { SingleFeedbackSchema } from "@/lib/validations/import";
 import { z } from "zod";
-
-const CreateFeedbackSchema = z.object({
-  content: z.string().min(3, "Feedback content must be at least 3 characters."),
-  channel: z.enum([
-    "SUPPORT_TICKET",
-    "APP_STORE_REVIEW",
-    "NPS_SURVEY",
-    "SALES_NOTE",
-    "COMMUNITY_POST",
-  ]),
-  sourceRef: z.string().optional(),
-  customerLabel: z.string().optional(),
-});
 
 export async function GET(req: Request) {
   const { user, error } = await requireAuthGuard();
@@ -27,11 +16,11 @@ export async function GET(req: Request) {
   const sentiment = url.searchParams.get("sentiment") || "";
   const themeId = url.searchParams.get("themeId") || "";
   const status = url.searchParams.get("status") || "";
+  const priority = url.searchParams.get("priority") || "";
   const days = parseInt(url.searchParams.get("days") || "0", 10);
   const page = parseInt(url.searchParams.get("page") || "1", 10);
   const limit = parseInt(url.searchParams.get("limit") || "15", 10);
 
-  // Build prisma filter strictly scoped to tenant workspaceId
   const where: any = {
     workspaceId: user.workspaceId,
   };
@@ -40,7 +29,11 @@ export async function GET(req: Request) {
     where.OR = [
       { content: { contains: search } },
       { customerLabel: { contains: search } },
+      { customerName: { contains: search } },
+      { customerEmail: { contains: search } },
+      { company: { contains: search } },
       { sourceRef: { contains: search } },
+      { title: { contains: search } },
       { featureArea: { contains: search } },
     ];
   }
@@ -55,6 +48,10 @@ export async function GET(req: Request) {
 
   if (status && status !== "ALL") {
     where.status = status;
+  }
+
+  if (priority && priority !== "ALL") {
+    where.priority = priority;
   }
 
   if (themeId && themeId !== "ALL") {
@@ -86,7 +83,6 @@ export async function GET(req: Request) {
     prisma.feedback.count({ where }),
   ]);
 
-  // Aggregate stats across all items in tenant workspace
   const totalWorkspaceItems = await prisma.feedback.count({
     where: { workspaceId: user.workspaceId },
   });
@@ -136,9 +132,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const validated = CreateFeedbackSchema.parse(body);
+    const validated = SingleFeedbackSchema.parse(body);
 
-    // Get existing themes for theme matching
     const existingThemes = await prisma.theme.findMany({
       where: { workspaceId: user.workspaceId },
       select: { name: true, id: true },
@@ -146,10 +141,9 @@ export async function POST(req: Request) {
 
     const themeNames = existingThemes.map((t: any) => t.name);
 
-    // Run AI classification
+    // AI Classification Pipeline
     const classification = await classifyFeedback(validated.content, themeNames);
 
-    // Find or create matching theme
     let matchedTheme = existingThemes.find(
       (t: any) => t.name.toLowerCase() === classification.themeName.toLowerCase()
     );
@@ -167,13 +161,32 @@ export async function POST(req: Request) {
       });
     }
 
-    // Save Feedback record with tenant workspaceId
+    const customerLabel =
+      validated.customerLabel ||
+      validated.customerName ||
+      validated.customerEmail ||
+      validated.company ||
+      "Direct Submission";
+
+    const ratingVal = validated.rating !== undefined ? Number(validated.rating) : null;
+    const priorityVal = validated.priority || classification.priority || "MEDIUM";
+
     const feedback = await prisma.feedback.create({
       data: {
         content: validated.content,
         channel: validated.channel,
         sourceRef: validated.sourceRef || `SINGLE-${Date.now().toString().slice(-4)}`,
-        customerLabel: validated.customerLabel || "Direct Submission",
+        customerLabel,
+        customerName: validated.customerName || null,
+        customerEmail: validated.customerEmail || null,
+        company: validated.company || null,
+        source: validated.source || "Manual Entry",
+        rating: Number.isNaN(ratingVal) ? null : ratingVal,
+        title: validated.title || null,
+        product: validated.product || null,
+        tags: validated.tags || null,
+        priority: priorityVal,
+        language: classification.language || "en",
         sentiment: classification.sentiment,
         sentimentScore: classification.sentimentScore,
         status: "NEW",
@@ -183,7 +196,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // Attach theme join record
     await prisma.feedbackTheme.create({
       data: {
         feedbackId: feedback.id,
@@ -192,13 +204,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // Save keyword embedding representation
     const keywords = validated.content.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
     await prisma.embedding.create({
       data: {
         feedbackId: feedback.id,
         vectorJson: JSON.stringify(keywords),
       },
+    });
+
+    await logAuditEvent({
+      action: "SINGLE_FEEDBACK_INGEST",
+      details: { feedbackId: feedback.id, channel: feedback.channel },
+      userId: user.userId,
+      workspaceId: user.workspaceId,
     });
 
     return NextResponse.json({
@@ -211,11 +229,11 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
-        { error: err.issues?.[0]?.message || err.message || "Invalid input." },
+        { error: err.issues?.[0]?.message || err.message || "Invalid input parameters." },
         { status: 400 }
       );
     }
     console.error("Create Feedback error:", err);
-    return NextResponse.json({ error: "Failed to process feedback entry." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to process single feedback entry." }, { status: 500 });
   }
 }
