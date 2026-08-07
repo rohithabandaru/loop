@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       imported: importedCount,
       source: sourceKey,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Simulate API error:", err);
     return NextResponse.json({ error: "Failed to simulate channel sync." }, { status: 500 });
   }

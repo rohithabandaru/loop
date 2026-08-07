@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     const passwordHash = await hashPassword(password);
 
     // Create Workspace & Admin User in transaction
-    const { workspace, user } = await prisma.$transaction(async (tx: any) => {
+    const { workspace, user } = await prisma.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
         data: { name: companyName },
       });
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     });
 
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Signup API error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }

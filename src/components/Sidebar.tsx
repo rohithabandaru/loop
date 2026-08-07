@@ -9,7 +9,6 @@ import {
   Sparkles,
   FileText,
   Users,
-  Settings,
   PlusCircle,
 } from "lucide-react";
 

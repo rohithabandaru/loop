@@ -11,7 +11,6 @@ import {
   FileText,
   Settings,
   PlusCircle,
-  Upload,
   Command,
   X,
 } from "lucide-react";
@@ -133,7 +132,7 @@ export default function CommandPalette({ onOpenIngestModal }: CommandPaletteProp
         <div className="max-h-80 overflow-y-auto p-2 space-y-1">
           {filtered.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500">
-              No matching actions found for "{query}".
+              No matching actions found for &quot;{query}&quot;.
             </div>
           ) : (
             filtered.map((item) => {

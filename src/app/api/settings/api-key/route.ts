@@ -3,7 +3,7 @@ import { requireAuthGuard } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import crypto from "crypto";
 
-export async function GET(req: Request) {
+export async function GET() {
   const { user, error } = await requireAuthGuard();
   if (error) return error;
 
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Failed to update integration settings." }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message || "Failed to update integration settings." }, { status: 500 });
   }
 }

@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
         { error: err.issues?.[0]?.message || "Invalid payload." },

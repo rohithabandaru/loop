@@ -1,9 +1,10 @@
 "use client";
 
-import { X, Smile, Meh, Frown, Tag, Calendar, Building, Sparkles, Shield, Hash, Layers } from "lucide-react";
+import { X, Smile, Meh, Frown, Sparkles, Layers } from "lucide-react";
+import type { FeedbackItem, FeedbackThemeRef } from "@/lib/types";
 
 interface FeedbackDetailModalProps {
-  item: any | null;
+  item: FeedbackItem | null;
   onClose: () => void;
   onStatusChange?: (id: string, newStatus: string) => void;
 }
@@ -57,7 +58,7 @@ export default function FeedbackDetailModal({
               Customer Feedback Content
             </span>
             <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl text-sm text-slate-100 leading-relaxed font-normal">
-              "{item.content}"
+              &quot;{item.content}&quot;
             </div>
           </div>
 
@@ -78,7 +79,7 @@ export default function FeedbackDetailModal({
               </span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {item.themes && item.themes.length > 0 ? (
-                  item.themes.map((t: any) => (
+                  item.themes.map((t: FeedbackThemeRef) => (
                     <span
                       key={t.id}
                       className="px-2.5 py-0.5 rounded-md text-[11px] font-medium text-white shadow-sm"

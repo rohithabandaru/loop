@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Search,
-  Filter,
   RefreshCw,
   Sparkles,
   ChevronLeft,
@@ -12,18 +11,17 @@ import {
   Meh,
   Frown,
   Trash2,
-  CheckCircle2,
-  Clock,
   AlertCircle,
   Tag,
   Building,
 } from "lucide-react";
+import type { FeedbackItem, ThemeData, PaginationInfo, FeedbackThemeRef } from "@/lib/types";
 
 export default function InboxPage() {
-  const [items, setItems] = useState<any[]>([]);
-  const [themes, setThemes] = useState<any[]>([]);
+  const [items, setItems] = useState<FeedbackItem[]>([]);
+  const [themes, setThemes] = useState<ThemeData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 12, total: 0, totalPages: 1 });
 
   // Filters
   const [search, setSearch] = useState("");
@@ -33,45 +31,41 @@ export default function InboxPage() {
   const [themeId, setThemeId] = useState("ALL");
   const [userRole, setUserRole] = useState<string>("ANALYST");
 
-  const fetchInbox = async (page = 1) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: pagination.limit.toString(),
-        search,
-        channel,
-        sentiment,
-        status,
-        themeId,
+  const fetchInbox = useCallback((page = 1) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: pagination.limit.toString(),
+      search,
+      channel,
+      sentiment,
+      status,
+      themeId,
+    });
+
+    Promise.all([
+      fetch(`/api/feedback?${params.toString()}`).then((r) => r.json()),
+      fetch("/api/themes").then((r) => r.json()),
+      fetch("/api/auth/me").then((r) => r.json()),
+    ])
+      .then(([fbData, themeData, meData]) => {
+        setItems(fbData.items || []);
+        setPagination(fbData.pagination || { page: 1, limit: 12, total: 0, totalPages: 1 });
+        setThemes(themeData.themes || []);
+        if (meData.user) {
+          setUserRole(meData.user.role);
+        }
+      })
+      .catch((e) => {
+        console.error("Inbox fetch error:", e);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-
-      const [fbRes, themeRes, meRes] = await Promise.all([
-        fetch(`/api/feedback?${params.toString()}`),
-        fetch("/api/themes"),
-        fetch("/api/auth/me"),
-      ]);
-
-      const fbData = await fbRes.json();
-      const themeData = await themeRes.json();
-      const meData = await meRes.json();
-
-      setItems(fbData.items || []);
-      setPagination(fbData.pagination || { page: 1, limit: 12, total: 0, totalPages: 1 });
-      setThemes(themeData.themes || []);
-      if (meData.user) {
-        setUserRole(meData.user.role);
-      }
-    } catch (e) {
-      console.error("Inbox fetch error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [search, channel, sentiment, status, themeId, pagination.limit]);
 
   useEffect(() => {
     fetchInbox(1);
-  }, [search, channel, sentiment, status, themeId]);
+  }, [fetchInbox]);
 
   // Status Workflow Change Handler (NEW -> REVIEWED -> ACTIONED)
   const handleStatusChange = async (id: string, newStatus: string) => {
@@ -83,7 +77,7 @@ export default function InboxPage() {
       });
       if (res.ok) {
         setItems((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
+          prev.map((item) => (item.id === id ? { ...item, status: newStatus as FeedbackItem["status"] } : item))
         );
       } else {
         const d = await res.json();
@@ -342,7 +336,7 @@ export default function InboxPage() {
                 {/* Rationale & Themes Footer */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-slate-400">
                   <div className="flex items-center space-x-2 flex-wrap">
-                    {item.themes?.map((t: any) => (
+                    {item.themes?.map((t: FeedbackThemeRef) => (
                       <span
                         key={t.id}
                         className="text-[11px] font-medium px-2.5 py-0.5 rounded-md text-white shadow-sm flex items-center space-x-1"

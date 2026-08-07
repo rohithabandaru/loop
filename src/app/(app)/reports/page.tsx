@@ -7,44 +7,49 @@ import {
   Printer,
   Calendar,
   RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
   Quote,
-  ArrowRight,
   User,
 } from "lucide-react";
+import type { ReportData, ReportContent } from "@/lib/types";
 
 export default function ReportsPage() {
-  const [reports, setReports] = useState<any[]>([]);
-  const [activeReport, setActiveReport] = useState<any | null>(null);
+  const [reports, setReports] = useState<ReportData[]>([]);
+  const [activeReport, setActiveReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [generating, setGenerating] = useState<boolean>(false);
   const [days, setDays] = useState<number>(30);
   const [userRole, setUserRole] = useState<string>("ANALYST");
 
-  const fetchReports = async () => {
-    setLoading(true);
-    try {
-      const [repRes, meRes] = await Promise.all([fetch("/api/reports"), fetch("/api/auth/me")]);
-      const repData = await repRes.json();
-      const meData = await meRes.json();
-
-      setReports(repData.reports || []);
-      if (repData.reports && repData.reports.length > 0) {
-        setActiveReport(repData.reports[0]);
-      }
-      if (meData.user) {
-        setUserRole(meData.user.role);
-      }
-    } catch (e) {
-      console.error("Fetch reports error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isCancelled = false;
+    const fetchReports = async () => {
+      try {
+        const [repRes, meRes] = await Promise.all([fetch("/api/reports"), fetch("/api/auth/me")]);
+        const repData = await repRes.json();
+        const meData = await meRes.json();
+
+        if (!isCancelled) {
+          setReports(repData.reports || []);
+          if (repData.reports && repData.reports.length > 0) {
+            setActiveReport(repData.reports[0]);
+          }
+          if (meData.user) {
+            setUserRole(meData.user.role);
+          }
+        }
+      } catch (e) {
+        console.error("Fetch reports error:", e);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchReports();
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const handleGenerateReport = async () => {
@@ -74,7 +79,7 @@ export default function ReportsPage() {
     window.print();
   };
 
-  const parsedContent = activeReport?.contentJson
+  const parsedContent: ReportContent | null = activeReport?.contentJson
     ? JSON.parse(activeReport.contentJson)
     : null;
 
@@ -163,7 +168,7 @@ export default function ReportsPage() {
           <FileText className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-200">No VoC Reports Generated Yet</h3>
           <p className="text-xs text-slate-500 mt-1">
-            Click 'Generate New Report' above to synthesize your workspace feedback into an executive digest.
+            Click &apos;Generate New Report&apos; above to synthesize your workspace feedback into an executive digest.
           </p>
         </div>
       ) : (
@@ -198,6 +203,7 @@ export default function ReportsPage() {
           </div>
 
           {/* Active Report Reader View (Print Target) */}
+          {activeReport && (
           <div className="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 print-card">
             {/* Report Header Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-5 gap-4">
@@ -294,7 +300,7 @@ export default function ReportsPage() {
                           className="bg-slate-950 border border-slate-800 p-4 rounded-xl text-xs text-slate-300 italic flex items-start space-x-2.5 print-card print-text"
                         >
                           <Quote className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                          <span>"{q}"</span>
+                          <span>&quot;{q}&quot;</span>
                         </div>
                       ))}
                     </div>
@@ -325,6 +331,7 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>

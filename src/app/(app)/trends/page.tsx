@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ThemeModal from "@/components/ThemeModal";
 import {
   TrendingUp,
@@ -10,30 +10,31 @@ import {
   RefreshCw,
   Smile,
   Frown,
-  Sparkles,
 } from "lucide-react";
+import type { ThemeData } from "@/lib/types";
 
 export default function TrendsPage() {
-  const [themes, setThemes] = useState<any[]>([]);
+  const [themes, setThemes] = useState<ThemeData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedTheme, setSelectedTheme] = useState<any | null>(null);
+  const [selectedTheme, setSelectedTheme] = useState<ThemeData | null>(null);
 
-  const fetchThemes = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/themes");
-      const data = await res.json();
-      setThemes(data.themes || []);
-    } catch (e) {
-      console.error("Fetch themes error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchThemes = useCallback(() => {
+    fetch("/api/themes")
+      .then((res) => res.json())
+      .then((data) => {
+        setThemes(data.themes || []);
+      })
+      .catch((e) => {
+        console.error("Fetch themes error:", e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     fetchThemes();
-  }, []);
+  }, [fetchThemes]);
 
   const spikingThemes = themes.filter((t) => t.isSpiking);
   const totalVolume = themes.reduce((acc, curr) => acc + curr.totalCount, 0);

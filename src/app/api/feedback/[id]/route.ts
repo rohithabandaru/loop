@@ -36,7 +36,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         success: true,
         feedback: {
           ...updated,
-          themes: updated.feedbackThemes.map((ft: any) => ft.theme),
+          themes: updated.feedbackThemes.map((ft) => ft.theme),
         },
       });
     }
@@ -48,11 +48,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         select: { id: true, name: true },
       });
 
-      const themeNames = existingThemes.map((t: any) => t.name);
+      const themeNames = existingThemes.map((t) => t.name);
       const classification = await classifyFeedback(existing.content, themeNames);
 
       let themeId = existingThemes.find(
-        (t: any) => t.name.toLowerCase() === classification.themeName.toLowerCase()
+        (t) => t.name.toLowerCase() === classification.themeName.toLowerCase()
       )?.id;
 
       if (!themeId) {
@@ -69,7 +69,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
 
       // Update feedback record
-      const updated = await prisma.feedback.update({
+      await prisma.feedback.update({
         where: { id },
         data: {
           sentiment: classification.sentiment,
@@ -98,13 +98,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         success: true,
         feedback: {
           ...fullUpdated,
-          themes: fullUpdated?.feedbackThemes.map((ft: any) => ft.theme) || [],
+          themes: fullUpdated?.feedbackThemes.map((ft) => ft.theme) || [],
         },
       });
     }
 
     return NextResponse.json({ error: "Invalid patch body." }, { status: 400 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Patch feedback error:", err);
     return NextResponse.json({ error: "Failed to update feedback item." }, { status: 500 });
   }
@@ -128,7 +128,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   try {
     await prisma.feedback.delete({ where: { id } });
     return NextResponse.json({ success: true, id });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Delete feedback error:", err);
     return NextResponse.json({ error: "Failed to delete feedback item." }, { status: 500 });
   }

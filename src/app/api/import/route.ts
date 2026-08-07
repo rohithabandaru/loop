@@ -12,6 +12,7 @@ import {
   validateAndProcessRows,
   RawRowData,
   ParsedFeedbackRow,
+  SupportedFileType,
 } from "@/lib/importer";
 import mammoth from "mammoth";
 
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
         }
       }
     } else {
-      const body = await req.json().catch(() => ({} as any));
+      const body = await req.json().catch(() => ({}));
       if (Array.isArray(body.validatedRows)) {
         preValidatedRows = body.validatedRows;
       } else if (Array.isArray(body.items)) {
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
           duplicateRowsCount: preValidatedRows.filter((r) => r.isDuplicate).length,
           rows: preValidatedRows,
         }
-      : validateAndProcessRows(rawRows, fileType as any);
+      : validateAndProcessRows(rawRows, fileType as SupportedFileType);
 
     if (!summary.rows || summary.rows.length === 0) {
       return NextResponse.json(

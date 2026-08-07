@@ -20,7 +20,7 @@ export async function GET() {
     });
 
     return NextResponse.json({ members });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Fetch members error:", err);
     return NextResponse.json({ error: "Failed to fetch members." }, { status: 500 });
   }
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, member: newMember });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Invite member error:", err);
     return NextResponse.json({ error: "Failed to create member." }, { status: 500 });
   }
@@ -104,7 +104,7 @@ export async function PATCH(req: Request) {
     });
 
     return NextResponse.json({ success: true, member: updated });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Update member role error:", err);
     return NextResponse.json({ error: "Failed to update member role." }, { status: 500 });
   }

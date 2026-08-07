@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Users,
   Shield,
   UserPlus,
   Building,
-  CheckCircle2,
-  AlertCircle,
   RefreshCw,
   Key,
   Webhook,
@@ -16,12 +14,14 @@ import {
   Code2,
 } from "lucide-react";
 import { useToast } from "@/components/ToastContext";
+import type { MemberData } from "@/lib/types";
+import type { SessionUser } from "@/lib/auth";
 
 export default function SettingsPage() {
   const toast = useToast();
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
 
   // Integration & API Key State
   const [apiKey, setApiKey] = useState<string | null>(null);
@@ -37,32 +37,29 @@ export default function SettingsPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchSettings = async () => {
-    setLoading(true);
-    try {
-      const [memRes, meRes, keyRes] = await Promise.all([
-        fetch("/api/members"),
-        fetch("/api/auth/me"),
-        fetch("/api/settings/api-key"),
-      ]);
-      const memData = await memRes.json();
-      const meData = await meRes.json();
-      const keyData = await keyRes.json();
-
-      setMembers(memData.members || []);
-      setCurrentUser(meData.user || null);
-      setApiKey(keyData.apiKey || null);
-      setSlackWebhookUrl(keyData.slackWebhookUrl || "");
-    } catch (e) {
-      console.error("Fetch settings error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchSettings = useCallback(() => {
+    Promise.all([
+      fetch("/api/members").then((r) => r.json()),
+      fetch("/api/auth/me").then((r) => r.json()),
+      fetch("/api/settings/api-key").then((r) => r.json()),
+    ])
+      .then(([memData, meData, keyData]) => {
+        setMembers(memData.members || []);
+        setCurrentUser(meData.user || null);
+        setApiKey(keyData.apiKey || null);
+        setSlackWebhookUrl(keyData.slackWebhookUrl || "");
+      })
+      .catch((e) => {
+        console.error("Fetch settings error:", e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [fetchSettings]);
 
   const handleGenerateKey = async () => {
     setGeneratingKey(true);

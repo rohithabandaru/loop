@@ -117,7 +117,7 @@ export async function POST(req: Request) {
       theme: matchedTheme.name,
       message: "Feedback ingested and classified successfully.",
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
         { error: err.issues?.[0]?.message || "Invalid payload." },

@@ -6,6 +6,8 @@ import { logAuditEvent } from "@/lib/audit";
 import { SingleFeedbackSchema } from "@/lib/validations/import";
 import { z } from "zod";
 
+import { Prisma } from "@prisma/client";
+
 export async function GET(req: Request) {
   const { user, error } = await requireAuthGuard();
   if (error) return error;
@@ -21,7 +23,7 @@ export async function GET(req: Request) {
   const page = parseInt(url.searchParams.get("page") || "1", 10);
   const limit = parseInt(url.searchParams.get("limit") || "15", 10);
 
-  const where: any = {
+  const where: Prisma.FeedbackWhereInput = {
     workspaceId: user.workspaceId,
   };
 
@@ -83,16 +85,18 @@ export async function GET(req: Request) {
     prisma.feedback.count({ where }),
   ]);
 
-  const totalWorkspaceItems = await prisma.feedback.count({
-    where: { workspaceId: user.workspaceId },
+  const filteredNegativeCount = await prisma.feedback.count({
+    where: {
+      ...where,
+      sentiment: "NEGATIVE",
+    },
   });
 
-  const negativeCount = await prisma.feedback.count({
-    where: { workspaceId: user.workspaceId, sentiment: "NEGATIVE" },
-  });
-
-  const actionedCount = await prisma.feedback.count({
-    where: { workspaceId: user.workspaceId, status: "ACTIONED" },
+  const filteredActionedCount = await prisma.feedback.count({
+    where: {
+      ...where,
+      status: "ACTIONED",
+    },
   });
 
   const sevenDaysAgo = new Date();
@@ -100,15 +104,15 @@ export async function GET(req: Request) {
 
   const newThisWeek = await prisma.feedback.count({
     where: {
-      workspaceId: user.workspaceId,
+      ...where,
       createdAt: { gte: sevenDaysAgo },
     },
   });
 
   return NextResponse.json({
-    items: items.map((f: any) => ({
+    items: items.map((f) => ({
       ...f,
-      themes: f.feedbackThemes.map((ft: any) => ft.theme),
+      themes: f.feedbackThemes.map((ft) => ft.theme),
     })),
     pagination: {
       page,
@@ -117,9 +121,9 @@ export async function GET(req: Request) {
       totalPages: Math.ceil(total / limit) || 1,
     },
     stats: {
-      total: totalWorkspaceItems,
-      negativeRatio: totalWorkspaceItems > 0 ? (negativeCount / totalWorkspaceItems) * 100 : 0,
-      actionedRatio: totalWorkspaceItems > 0 ? (actionedCount / totalWorkspaceItems) * 100 : 0,
+      total,
+      negativeRatio: total > 0 ? (filteredNegativeCount / total) * 100 : 0,
+      actionedRatio: total > 0 ? (filteredActionedCount / total) * 100 : 0,
       newThisWeek,
     },
   });
@@ -139,13 +143,13 @@ export async function POST(req: Request) {
       select: { name: true, id: true },
     });
 
-    const themeNames = existingThemes.map((t: any) => t.name);
+    const themeNames = existingThemes.map((t) => t.name);
 
     // AI Classification Pipeline
     const classification = await classifyFeedback(validated.content, themeNames);
 
     let matchedTheme = existingThemes.find(
-      (t: any) => t.name.toLowerCase() === classification.themeName.toLowerCase()
+      (t) => t.name.toLowerCase() === classification.themeName.toLowerCase()
     );
 
     if (!matchedTheme) {
@@ -226,7 +230,7 @@ export async function POST(req: Request) {
         themes: [matchedTheme],
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
         { error: err.issues?.[0]?.message || err.message || "Invalid input parameters." },

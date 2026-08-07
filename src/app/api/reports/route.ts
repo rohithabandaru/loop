@@ -19,7 +19,7 @@ export async function GET() {
     });
 
     return NextResponse.json({ reports });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Fetch reports error:", err);
     return NextResponse.json({ error: "Failed to fetch reports." }, { status: 500 });
   }
@@ -46,13 +46,13 @@ export async function POST(req: Request) {
       },
     });
 
-    const posCount = items.filter((i: any) => i.sentiment === "POSITIVE").length;
-    const negCount = items.filter((i: any) => i.sentiment === "NEGATIVE").length;
+    const posCount = items.filter((i) => i.sentiment === "POSITIVE").length;
+    const negCount = items.filter((i) => i.sentiment === "NEGATIVE").length;
 
     // Theme frequency counts
     const themeCounts: Record<string, number> = {};
-    items.forEach((item: any) => {
-      item.feedbackThemes.forEach((ft: any) => {
+    items.forEach((item) => {
+      item.feedbackThemes.forEach((ft) => {
         themeCounts[ft.theme.name] = (themeCounts[ft.theme.name] || 0) + 1;
       });
     });
@@ -63,7 +63,30 @@ export async function POST(req: Request) {
       .slice(0, 4);
 
     const spikingTheme = topThemes[0]?.name || "Onboarding & Setup";
-    const sampleQuotes = items.map((i: any) => i.content).slice(0, 6);
+
+    // Compute real WoW spike for the top theme
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const topThemeFeedback = items.filter((item) =>
+      item.feedbackThemes.some((ft) => ft.theme.name === spikingTheme)
+    );
+    const recentCount = topThemeFeedback.filter(
+      (f) => new Date(f.createdAt) >= sevenDaysAgo
+    ).length;
+    const previousCount = topThemeFeedback.filter(
+      (f) => new Date(f.createdAt) >= fourteenDaysAgo && new Date(f.createdAt) < sevenDaysAgo
+    ).length;
+
+    let spikePercentage = 0;
+    if (previousCount > 0) {
+      spikePercentage = Math.round(((recentCount - previousCount) / previousCount) * 100);
+    } else if (recentCount > 0) {
+      spikePercentage = recentCount * 50;
+    }
+
+    const sampleQuotes = items.map((i) => i.content).slice(0, 6);
 
     const periodLabel = days === 7 ? "Past 7 Days" : days === 30 ? "Past 30 Days" : "Past 90 Days";
 
@@ -75,6 +98,7 @@ export async function POST(req: Request) {
       negCount,
       topThemes,
       spikingTheme,
+      spikePercentage,
       sampleQuotes,
     });
 
@@ -95,7 +119,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, report });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Generate report error:", err);
     return NextResponse.json({ error: "Failed to generate report." }, { status: 500 });
   }

@@ -29,7 +29,7 @@ export async function searchFeedbackSemantic(
     .filter((w) => w.length > 2);
 
   if (queryTerms.length === 0) {
-    return feedbacks.slice(0, topK).map((f: any) => ({
+    return feedbacks.slice(0, topK).map((f) => ({
       id: f.id,
       content: f.content,
       channel: f.channel,
@@ -40,7 +40,7 @@ export async function searchFeedbackSemantic(
   }
 
   // Score each feedback entry
-  const scored = feedbacks.map((item: any) => {
+  const scored = feedbacks.map((item) => {
     const textLower = item.content.toLowerCase();
     let score = 0;
 
@@ -83,7 +83,7 @@ export async function searchFeedbackSemantic(
   });
 
   // Sort descending by score & filter non-zero (or fallback to top items if no match)
-  const filtered = scored.filter((s: any) => s.score > 0).sort((a: any, b: any) => b.score - a.score);
+  const filtered = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
 
   if (filtered.length === 0) {
     return scored.slice(0, topK);

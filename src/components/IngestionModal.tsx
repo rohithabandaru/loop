@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   AlertCircle,
   FileSpreadsheet,
-  AlertTriangle,
   FileText,
   Trash2,
   Sparkles,
@@ -29,7 +28,6 @@ import {
 } from "lucide-react";
 import {
   parseAndValidateFile,
-  parseCsvWithPapa,
   smartSplitPastedFeedback,
   validateAndProcessRows,
   ValidationSummary,
@@ -44,21 +42,36 @@ interface IngestionModalProps {
   onSuccess: () => void;
 }
 
+type IngestTab = "file" | "single" | "paste" | "simulate";
+
+interface ImportResultData {
+  success?: boolean;
+  summary?: {
+    processingTimeMs?: number;
+    totalProcessed?: number;
+    importedCount?: number;
+    skippedCount?: number;
+    duplicateCount?: number;
+    validationErrors?: string[];
+  };
+}
+
 export default function IngestionModal({ isOpen, onClose, onSuccess }: IngestionModalProps) {
-  const [activeTab, setActiveTab] = useState<"file" | "single" | "paste" | "simulate">("file");
+  const [activeTab, setActiveTab] = useState<IngestTab>("file");
 
   // Single Form State
+  const [channel, setChannel] = useState<SupportedChannelType>("EMAIL");
+  const [content, setContent] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [company, setCompany] = useState("");
-  const [channel, setChannel] = useState<SupportedChannelType>("SUPPORT_TICKET");
   const [source, setSource] = useState("");
   const [rating, setRating] = useState<number | "">(5);
+  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "URGENT">("MEDIUM");
   const [product, setProduct] = useState("");
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
-  const [priority, setPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "URGENT">("MEDIUM");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [singleError, setSingleError] = useState("");
 
@@ -69,7 +82,7 @@ export default function IngestionModal({ isOpen, onClose, onSuccess }: Ingestion
   const [isParsing, setIsParsing] = useState(false);
   const [importProgress, setImportProgress] = useState<number | null>(null);
   const [progressStatus, setProgressStatus] = useState<string>("");
-  const [importResult, setImportResult] = useState<any>(null);
+  const [importResult, setImportResult] = useState<ImportResultData | null>(null);
   const [fileError, setFileError] = useState<string>("");
 
   // Paste State
@@ -78,7 +91,7 @@ export default function IngestionModal({ isOpen, onClose, onSuccess }: Ingestion
 
   // Simulation State
   const [simulatingChannel, setSimulatingChannel] = useState<string | null>(null);
-  const [simResult, setSimResult] = useState<any>(null);
+  const [simResult, setSimResult] = useState<{ imported?: number; source?: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,9 +160,9 @@ export default function IngestionModal({ isOpen, onClose, onSuccess }: Ingestion
       if (summary.totalRows === 0) {
         setFileError("The uploaded file contains no readable feedback rows or content.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Client file parsing error:", err);
-      setFileError(err.message || "Failed to parse file. Verify file format (CSV, Excel, JSON, TXT, DOCX, PDF).");
+      setFileError((err as Error).message || "Failed to parse file. Verify file format (CSV, Excel, JSON, TXT, DOCX, PDF).");
     } finally {
       setIsParsing(false);
       setTimeout(() => setImportProgress(null), 400);
@@ -269,8 +282,8 @@ export default function IngestionModal({ isOpen, onClose, onSuccess }: Ingestion
           onSuccess();
         }
       }
-    } catch (err: any) {
-      setFileError(err.message || "Network error occurred during import.");
+    } catch (err: unknown) {
+      setFileError((err as Error).message || "Network error occurred during import.");
     } finally {
       setIsSubmitting(false);
       setTimeout(() => setImportProgress(null), 600);
@@ -780,7 +793,7 @@ export default function IngestionModal({ isOpen, onClose, onSuccess }: Ingestion
                   </label>
                   <select
                     value={priority}
-                    onChange={(e) => setPriority(e.target.value as any)}
+                    onChange={(e) => setPriority(e.target.value as "LOW" | "MEDIUM" | "HIGH" | "URGENT")}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                   >
                     <option value="LOW">Low Priority</option>
@@ -908,7 +921,7 @@ Delivery of report export was delayed by 2 hours.`}
                       <div key={r.rowNumber} className="p-2 text-[11px] flex justify-between items-start space-x-2">
                         <div className="flex-1">
                           <span className="font-semibold text-slate-200">{r.customerLabel}: </span>
-                          <span className="text-slate-400 font-sans">"{r.content}"</span>
+                          <span className="text-slate-400 font-sans">&quot;{r.content}&quot;</span>
                         </div>
                         <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[10px] font-mono shrink-0">
                           {r.channel}
@@ -999,7 +1012,7 @@ Delivery of report export was delayed by 2 hours.`}
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs flex items-center space-x-2 animate-fade-in">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                   <span>
-                    Successfully simulated import of {simResult.imported || 2} customer records from '{simResult.source}'.
+                    Successfully simulated import of {simResult.imported || 2} customer records from &apos;{simResult.source}&apos;.
                   </span>
                 </div>
               )}

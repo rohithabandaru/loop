@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Building2, Shield, LogOut, RefreshCw, UserCheck } from "lucide-react";
+import { Building2, Shield, LogOut, RefreshCw } from "lucide-react";
 
 interface NavbarProps {
   user: {

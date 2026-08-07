@@ -207,8 +207,9 @@ export async function generateVoCReportNarrative(stats: {
   negCount: number;
   topThemes: Array<{ name: string; count: number }>;
   spikingTheme: string;
+  spikePercentage: number;
   sampleQuotes: string[];
-}): Promise<{ summary: string; metrics: any; quotes: string[]; recommendations: string[] }> {
+}): Promise<{ summary: string; metrics: { totalItems: number; negativeRatio: number; positiveRatio: number; topSpikeTheme: string; spikePercentage: string }; quotes: string[]; recommendations: string[] }> {
   const client = getAnthropicClient();
 
   if (client) {
@@ -236,7 +237,7 @@ export async function generateVoCReportNarrative(stats: {
           negativeRatio: stats.totalFeedback > 0 ? Number((stats.negCount / stats.totalFeedback).toFixed(2)) : 0,
           positiveRatio: stats.totalFeedback > 0 ? Number((stats.posCount / stats.totalFeedback).toFixed(2)) : 0,
           topSpikeTheme: stats.spikingTheme,
-          spikePercentage: "+58% WoW",
+          spikePercentage: `${stats.spikePercentage >= 0 ? "+" : ""}${stats.spikePercentage}% WoW`,
         },
         quotes: stats.sampleQuotes.slice(0, 4),
         recommendations: parsed.recommendations || [],
@@ -253,7 +254,7 @@ export async function generateVoCReportNarrative(stats: {
       negativeRatio: stats.totalFeedback > 0 ? Number((stats.negCount / stats.totalFeedback).toFixed(2)) : 0,
       positiveRatio: stats.totalFeedback > 0 ? Number((stats.posCount / stats.totalFeedback).toFixed(2)) : 0,
       topSpikeTheme: stats.spikingTheme,
-      spikePercentage: "+58% WoW",
+      spikePercentage: `${stats.spikePercentage >= 0 ? "+" : ""}${stats.spikePercentage}% WoW`,
     },
     quotes: stats.sampleQuotes.slice(0, 4),
     recommendations: [

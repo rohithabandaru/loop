@@ -1,23 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Send, RefreshCw, FileText, CheckCircle2, MessageSquare, ExternalLink, HelpCircle } from "lucide-react";
+import { Sparkles, Send, RefreshCw, HelpCircle } from "lucide-react";
+import type { CitedFeedback } from "@/lib/types";
 
-interface Message {
+interface AskMessage {
   id: string;
   sender: "user" | "ai";
   text: string;
-  citations?: Array<{
-    id: string;
-    content: string;
-    channel: string;
-    sentiment: string;
-    customerLabel?: string | null;
-  }>;
+  citations?: CitedFeedback[];
+}
+
+function generateId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 export default function AskLoopPage() {
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<AskMessage[]>([
     {
       id: "welcome-1",
       sender: "ai",
@@ -38,7 +37,7 @@ export default function AskLoopPage() {
     const q = queryText || inputQuery;
     if (!q.trim() || loading) return;
 
-    const userMsg: Message = { id: `user-${Date.now()}`, sender: "user", text: q };
+    const userMsg: AskMessage = { id: generateId("user"), sender: "user", text: q };
     setMessages((prev) => [...prev, userMsg]);
     if (!queryText) setInputQuery("");
     setLoading(true);
@@ -54,11 +53,11 @@ export default function AskLoopPage() {
       if (!res.ok) {
         setMessages((prev) => [
           ...prev,
-          { id: `ai-err-${Date.now()}`, sender: "ai", text: `Error: ${data.error || "Failed to process question."}` },
+          { id: generateId("ai-err"), sender: "ai", text: `Error: ${data.error || "Failed to process question."}` },
         ]);
       } else {
-        const aiMsg: Message = {
-          id: `ai-${Date.now()}`,
+        const aiMsg: AskMessage = {
+          id: generateId("ai"),
           sender: "ai",
           text: data.answer,
           citations: data.citations || [],
@@ -68,7 +67,7 @@ export default function AskLoopPage() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: `ai-err-${Date.now()}`, sender: "ai", text: "Network error communicating with Ask LOOP." },
+        { id: generateId("ai-err"), sender: "ai", text: "Network error communicating with Ask LOOP." },
       ]);
     } finally {
       setLoading(false);
@@ -162,7 +161,7 @@ export default function AskLoopPage() {
                           </span>
                           <span className="text-slate-400">{c.customerLabel || "Anonymous Customer"}</span>
                         </div>
-                        <p className="text-slate-300 italic">"{c.content}"</p>
+                        <p className="text-slate-300 italic">&quot;{c.content}&quot;</p>
                       </div>
                     ))}
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import StatCard from "@/components/StatCard";
 import {
   MessageSquare,
@@ -27,44 +27,45 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import type { FeedbackItem, DashboardStats, ThemeData } from "@/lib/types";
 
 export default function DashboardPage() {
   const [days, setDays] = useState<number>(30);
   const [channelFilter, setChannelFilter] = useState<string>("ALL");
   const [loading, setLoading] = useState<boolean>(true);
-  const [feedbackItems, setFeedbackItems] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>({
+  const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
     total: 0,
     negativeRatio: 0,
     actionedRatio: 0,
     newThisWeek: 0,
   });
-  const [themes, setThemes] = useState<any[]>([]);
+  const [themes, setThemes] = useState<ThemeData[]>([]);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
-    try {
-      const [fbRes, themeRes] = await Promise.all([
-        fetch(`/api/feedback?limit=500&days=${days}&channel=${channelFilter}`),
-        fetch("/api/themes"),
-      ]);
-
-      const fbData = await fbRes.json();
-      const themeData = await themeRes.json();
-
-      setFeedbackItems(fbData.items || []);
-      setStats(fbData.stats || {});
-      setThemes(themeData.themes || []);
-    } catch (e) {
-      console.error("Dashboard fetch error:", e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchDashboardData = useCallback(() => {
+    Promise.resolve()
+      .then(() => {
+        return Promise.all([
+          fetch(`/api/feedback?limit=500&days=${days}&channel=${channelFilter}`, { cache: "no-store" }).then((r) => r.json()),
+          fetch("/api/themes", { cache: "no-store" }).then((r) => r.json()),
+        ]);
+      })
+      .then(([fbData, themeData]) => {
+        setFeedbackItems(fbData.items || []);
+        setStats(fbData.stats || {});
+        setThemes(themeData.themes || []);
+      })
+      .catch((e) => {
+        console.error("Dashboard fetch error:", e);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [days, channelFilter]);
 
   useEffect(() => {
     fetchDashboardData();
-  }, [days, channelFilter]);
+  }, [fetchDashboardData]);
 
   // Compute Volume over time chart data
   const volumeChartData = (() => {

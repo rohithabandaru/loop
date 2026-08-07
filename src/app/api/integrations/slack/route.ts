@@ -30,7 +30,7 @@ export async function sendSlackAlert(webhookUrl: string, message: { title: strin
 }
 
 // Test Slack Webhook endpoint
-export async function POST(req: Request) {
+export async function POST() {
   const { user, error } = await requireAuthGuard(["ADMIN", "ANALYST"]);
   if (error) return error;
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, message: "Slack test alert sent successfully!" });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Failed to dispatch Slack alert." }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: (e as Error).message || "Failed to dispatch Slack alert." }, { status: 500 });
   }
 }

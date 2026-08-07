@@ -15,6 +15,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Question string is required." }, { status: 400 });
     }
 
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     // Retrieve top-K relevant feedback items scoped strictly to user workspaceId
     const contextItems = await searchFeedbackSemantic(user.workspaceId, question, 6);
 
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
       answer: result.answer,
       citations: contextItems,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Ask LOOP API error:", err);
     return NextResponse.json({ error: "Failed to answer question." }, { status: 500 });
   }
